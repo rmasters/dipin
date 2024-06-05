@@ -1,0 +1,79 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+      - uses: eifinger/setup-rye@v3
+        with:
+          enable-cache: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: rye sync  # required for post-job to complete
+      - name: Lint code
+        run: rye check
+      - name: Check formatting
+        run: rye format --check
+
+  #types:
+  #  runs-on: ubuntu-latest
+  #  steps:
+  #    - uses: actions/checkout@v4
+  #    - uses: actions/setup-python@v5
+  #      with:
+  #        python-version: 3.12
+  #    - uses: eifinger/setup-rye@v2
+  #      with:
+  #        enable-cache: true
+  #        github-token: ${{ secrets.GITHUB_TOKEN }}
+  #    - name: Install dependencies
+  #      run: rye sync
+  #    - name: Check types
+  #      run: ./.venv/bin/mypy .
+
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    strategy:
+      matrix:
+        python-version:
+          - "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: eifinger/setup-rye@v2
+        with:
+          enable-cache: true
+          cache-prefix: ${{ matrix.python-version }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pin Python version
+        run: rye pin ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: rye sync
+      - name: Run pytest
+        run: rye test -- --junitxml=pytest.xml --cov=dipin --cov-report=xml:coverage.xml
+      - name: Comment PR
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-xml-coverage-path: ./coverage.xml
+          junitxml-path: ./pytest.xml
+          unique-id-for-comment: ${{ matrix.python-version }}
+          title: Coverage (${{ matrix.python-version }})
+          badge-title: Coverage (${{ matrix.python-version }})
