@@ -43,8 +43,28 @@ class ResolvingContainer:
         self.container.register_factory(type_, factory, name, create_once)
 
     def get(self, key: LookupKey) -> Instance:
-        container_key = self.container.lookup(key)
-        return self.retrieve(container_key)
+        try:
+            container_key = self.container.lookup(key)
+            return self.retrieve(container_key)
+        except KeyError as e:
+            # Auto-wire type-lookups
+            if container_key := self._autowire_unseen_type(key):
+                return self.retrieve(container_key)
+
+            raise e
+
+    def _autowire_unseen_type(self, key: LookupKey) -> ContainerKey | None:
+        if type(key) is not type:
+            return
+
+        container_key = (key, None)
+        deps = self.resolver.build_required_dependencies(container_key)
+        uniques = self.resolver.get_unique_dependencies(deps)
+        for dep in uniques:
+            if dep not in self.container:
+                self.register_factory(dep[0])
+
+        return container_key
 
     def __getitem__(self, item: LookupKey) -> Instance:
         return self.get(item)
@@ -62,12 +82,26 @@ class ResolvingContainer:
 
         return instance
 
+    def __len__(self) -> int:
+        return len(self.container)
+
+    def __contains__(self, item: LookupKey) -> bool:
+        try:
+            self.container.lookup(item)
+            return True
+        except KeyError:
+            return False
+
 
 class FastAPIContainer(ResolvingContainer):
     """High-level interface for the DI container, for FastAPI application"""
 
     def __getitem__(self, key: LookupKey) -> Depends:
-        container_key = self.container.lookup(key)
+        try:
+            container_key = self.container.lookup(key)
+        except KeyError as e:
+            if not (container_key := self._autowire_unseen_type(key)):
+                raise e
 
         return Annotated[
             container_key[0],

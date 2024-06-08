@@ -265,3 +265,32 @@ def test_fastapi_dependent_services_resolved():
 
         assert json["svc_type"] == "DependentService"
         assert json["svc_service_type"] == "Service"
+
+
+def test_fastapi_autowiring():
+    DI = FastAPIContainer()
+
+    class Service: ...
+
+    class DependentService:
+        service: Service
+
+        def __init__(self, service: Service):
+            self.service = service
+
+    app = FastAPI()
+
+    @app.get("/")
+    async def test(svc: DI[DependentService]):
+        return {
+            "svc_type": type(svc).__name__,
+            "svc_service_type": type(svc.service).__name__,
+            "id": id(svc),
+        }
+
+    test_client = TestClient(app)
+    resp = test_client.get("/")
+    json = resp.json()
+
+    assert json["svc_type"] == "DependentService"
+    assert json["svc_service_type"] == "Service"

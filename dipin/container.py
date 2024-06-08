@@ -80,6 +80,9 @@ class Container:
             type_, name = self._find_by_name(key)
             return type_, name
 
+        if (key, None) not in self.container:
+            raise KeyError(f"Container item with type {key} not registered")
+
         return key, None
 
     def _find_by_name(self, name: str) -> ContainerKey:
