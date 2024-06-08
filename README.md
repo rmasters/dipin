@@ -45,7 +45,7 @@ DI = Container()
 
 # Register a singleton across all requests
 from .settings import Settings  # e.g. a pydantic-settings model
-DI.register_instance(Settings(), Settings)
+DI.register_instance(Settings())
 
 # Register a factory (lazy singleton), called once across all requests
 from sqlalchemy.ext.asyncio import create_async_engine
