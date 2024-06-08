@@ -43,8 +43,6 @@ def test_registering_two_factories_of_same_type_replaces_instance_and_emits_warn
     with pytest.warns() as record:
         container.register_factory(B, lambda: B(2))
 
-    print()
-
     assert len(record) == 1
     assert (
         str(record[0].message)

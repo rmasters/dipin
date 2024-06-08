@@ -34,7 +34,6 @@ class Resolver:
     def find_factory_args(factory: Factory) -> dict[ContainerKey]:
         # Handle factories that are Object.__init__ types
         if type(factory) is type:
-            print("IS TYPE")
             factory = getattr(factory, "__init__", None)
             if factory is None:
                 raise Exception(
