@@ -15,7 +15,7 @@ dipin aims to:
 1.  Remove the need to annotate types in non-FastAPI code with `Depends`,
 2.  Provide a simple API to access dependencies in route-handlers, e.g.:
     ```python
-    from .di import DI
+    from dipin import DI
 
     @app.get("/")
     async def homepage(request: Request, user: DI[AuthenticatedUser]):
@@ -39,9 +39,7 @@ TODO
 ```python
 # di.py
 
-from dipin import Container
-
-DI = Container()
+from dipin import DI
 
 # Register a singleton across all requests
 from .settings import Settings  # e.g. a pydantic-settings model
@@ -76,7 +74,7 @@ DI.register_factory(AsyncSession, create_session)
 from fastapi import FastAPI
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from .di import DI
+from dipin import DI
 
 app = FastAPI()
 
