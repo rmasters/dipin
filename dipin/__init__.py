@@ -1,5 +1,10 @@
 __version__ = "0.0.1"
 
-from .main import Container
+from .container import Container
+from .interface import FastAPIContainer
+from .resolver import CircularDependencyError
 
-__all__ = ["Container"]
+__all__ = ["Container", "CircularDependencyError"]
+
+
+DI = FastAPIContainer()
