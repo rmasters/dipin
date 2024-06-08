@@ -108,3 +108,20 @@ def test_resolver_with_non_type_args():
         str(e.value)
         == "Unable to build required dependencies for test_resolver.test_resolver_with_non_type_args.<locals>.A with unresolved arguments: val (<class 'int'>)."
     )
+
+
+@pytest.mark.xfail(reason="Not yet implemented")
+def test_resolver_with_non_type_default_arg():
+    container = Container()
+    resolver = Resolver(container)
+
+    class A:
+        val: int
+
+        def __init__(self, val: int = 1):
+            self.val = val
+
+    a = resolver.get((A, None))
+
+    assert isinstance(a, A)
+    assert a.val == 1

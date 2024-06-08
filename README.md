@@ -91,32 +91,16 @@ async def list_orders(session: DI[AsyncSession]):
 
 ## Roadmap
 
--   **Autowiring**
-    Currently, a factory function is needed for every non-instance dependency.
-    -   Some dependencies can be auto-wired, e.g.:  
-        ```python
-        class Foo: ...
-        class Bar:
-            def __init__(foo: Foo): ...
-        ```
-        ```python
-        DI.register_factory(Foo)
-
-        # Before
-        def create_bar(foo: DI[Foo]): return Bar(foo)
-        DI.register_factory(Bar, create_bar)
-
-        # After
-        DI.register_factory(Bar)
-        ```
-    -   It doesn't appear that the current method of creating `params.Depends`
-        allows this (you get errors about the Foo dependency not present in the
-        query-string). I think the approach is to generate these factory
-        functions ourselves.
+-   **Support default arguments in factories**
+    -   e.g. `class A: def __init__(self, foo: str = "bar")` should be instantiable.
+-   **Named dependencies**
+    -   e.g. `DI["PrivateOpenAIClient"]`
+    -   Out of the box, it seems to lookup the class name (as a deferred annotation), but `typing.Literal` supports this.
+-   **Full typing support**
+    -   Currently `DI[Class]` does not resolve to an instance of `Class`.
 -   **Support many types of dependencies**
     -   Including named (but we won't be able to use `DI[...]`), and some of
         those described in [python-dependency-injector][pdi-providers].
     -   Providing our own `fastapi.Depends` is likely needed.
--   **Supporting creation of dependencies with decorators**
 
 [pdi-providers]: https://python-dependency-injector.ets-labs.org/providers/index.html
