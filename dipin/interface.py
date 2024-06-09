@@ -58,14 +58,12 @@ class ResolvingContainer:
         return self.get(item)
 
     def retrieve(self, container_key: ContainerKey) -> Instance:
-        should_cache = self.container.should_cache(container_key)
-
-        if should_cache and self.container.is_cached(container_key):
+        if self.container.is_cached(container_key):
             return self.container.get_cached(container_key)
 
         instance = self.resolver.get(container_key)
 
-        if should_cache:
+        if self.container.should_cache(container_key):
             self.container.set_cached(container_key, instance)
 
         return instance

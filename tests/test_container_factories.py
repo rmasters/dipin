@@ -1,6 +1,7 @@
 import pytest
 
 from dipin import Container
+from dipin.container import PartialFactoryContainerItem
 
 
 class A: ...
@@ -14,11 +15,14 @@ def test_register_single_factory():
     assert len(container) == 1
     assert (A, None) in container
 
-    factory_fn = container[(A, None)]["factory"]
+    item = container.get((A, None))
+    assert isinstance(item, PartialFactoryContainerItem)
+
+    factory_fn = item.factory
     assert factory_fn is A
     assert isinstance(factory_fn(), A)
 
-    assert container[(A, None)]["use_cache"] is False
+    assert item.use_cache is False
 
 
 def test_factory_function_returns_different_instances():
@@ -28,7 +32,7 @@ def test_factory_function_returns_different_instances():
 
     prev_instance_id = 0
     for i in range(3):
-        assert id(container.get_factory((A, None))()) != prev_instance_id
+        assert id(container[(A, None)].factory()) != prev_instance_id
 
 
 def test_registering_two_factories_of_same_type_replaces_instance_and_emits_warning():
@@ -52,6 +56,6 @@ def test_registering_two_factories_of_same_type_replaces_instance_and_emits_warn
     assert len(container) == 1
     assert (B, None) in container
 
-    factory_fn = container[(B, None)]["factory"]
+    factory_fn = container[(B, None)].factory
     assert callable(factory_fn)
     assert factory_fn().val == 2

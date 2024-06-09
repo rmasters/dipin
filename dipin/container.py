@@ -14,23 +14,23 @@ ContainerKey = tuple[InstanceType, Name | None]
 
 
 @dataclass
-class ContainerItem:
-    use_cache: bool
-
-
-@dataclass
-class InstanceContainerItem(ContainerItem):
+class InstanceContainerItem:
     instance: Instance
 
 
 @dataclass
-class PartialFactoryContainerItem(ContainerItem):
+class PartialFactoryContainerItem:
+    use_cache: bool
     factory: Factory
 
 
 @dataclass
-class DefinedFactoryContainerItem(ContainerItem):
+class DefinedFactoryContainerItem:
+    use_cache: bool
     factory: Factory
+
+
+ContainerItem = InstanceContainerItem | PartialFactoryContainerItem | DefinedFactoryContainerItem
 
 
 class Container:
@@ -53,7 +53,7 @@ class Container:
         if name:
             self._check_for_existing_names(name)
 
-        self.set((type_, name), InstanceContainerItem(instance=instance, use_cache=False))
+        self.set((type_, name), InstanceContainerItem(instance=instance))
         return type_, name
 
     def register_factory(
@@ -116,6 +116,10 @@ class Container:
 
     def should_cache(self, key: ContainerKey) -> bool:
         item = self.container[key]
+
+        if isinstance(item, InstanceContainerItem):
+            return False
+
         return item.use_cache
 
     def is_cached(self, key: ContainerKey) -> bool:
