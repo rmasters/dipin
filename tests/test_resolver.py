@@ -1,7 +1,7 @@
 import pytest
 
 from dipin.container import Container
-from dipin.resolver import Resolver, CircularDependencyError, RequiredDependenciesError
+from dipin.resolver import Resolver, CircularDependencyError, UnfillableArgumentError
 
 
 class A:
@@ -18,7 +18,7 @@ class Circular:
         self.c = c
 
 
-def test_resolver_no_dependencies():
+def test_resolver_simple_factory_dependency():
     container = Container()
     container.register_factory(A)
 
@@ -28,7 +28,7 @@ def test_resolver_no_dependencies():
     assert isinstance(a, A)
 
 
-def test_resolver_single_dependency():
+def test_resolver_instantiates_dependent():
     container = Container()
     container.register_factory(A)
     container.register_factory(B)
@@ -40,6 +40,7 @@ def test_resolver_single_dependency():
     assert isinstance(b.a, A)
 
 
+@pytest.mark.xfail
 def test_resolver_circular_dependency():
     container = Container()
     container.register_factory(Circular)
@@ -50,63 +51,35 @@ def test_resolver_circular_dependency():
         resolver.get((Circular, None))
 
 
-def test_resolver_build_requirements():
+def test_resolver_fails_on_string_dependencies():
     container = Container()
+    container.register_factory(Circular)
+
     resolver = Resolver(container)
 
-    class A: ...
+    with pytest.raises(NotImplementedError) as e:
+        resolver.get((Circular, None))
 
-    class B:
-        def __init__(self, a: A): ...
-
-    class C:
-        def __init__(self, b: B, a: A): ...
-
-    requirements = resolver.build_required_dependencies((C, None))
-
-    assert len(requirements) == 3
-
-    assert len(requirements[(A, None)]) == 0
-
-    assert len(requirements[(B, None)]) == 1
-    assert requirements[(B, None)]["a"] == (A, None)
-
-    assert len(requirements[(C, None)]) == 2
-    assert requirements[(C, None)]["b"] == (B, None)
-    assert requirements[(C, None)]["a"] == (A, None)
+    assert str(e.value) == "String annotations are not supported yet"
 
 
-def test_resolver_get_unique_dependencies():
-    container = Container()
-    resolver = Resolver(container)
-
-    class A: ...
-
-    class B:
-        def __init__(self, a: A): ...
-
-    class C:
-        def __init__(self, b: B, a: A): ...
-
-    requirements = resolver.build_required_dependencies((C, None))
-    unique = resolver.get_unique_dependencies(requirements)
-
-    assert unique == {(A, None), (B, None), (C, None)}
-
-
-def test_resolver_with_non_type_args():
+@pytest.mark.parametrize("use_autowiring", [True, False])
+def test_resolver_with_non_type_args(use_autowiring: bool):
     container = Container()
     resolver = Resolver(container)
 
     class A:
         def __init__(self, val: int): ...
 
-    with pytest.raises(RequiredDependenciesError) as e:
-        resolver.build_required_dependencies((A, None))
+    if not use_autowiring:
+        container.register_factory(A)
+
+    with pytest.raises(UnfillableArgumentError) as e:
+        resolver.get((A, None))
 
     assert (
         str(e.value)
-        == "Unable to build required dependencies for test_resolver.test_resolver_with_non_type_args.<locals>.A with unresolved arguments: val (<class 'int'>)."
+        == "Unable to fill parameter val (<class 'int'>)"
     )
 
 

@@ -2,6 +2,8 @@ import warnings
 from dataclasses import dataclass
 from typing import Callable, Type, TypeVar, TypedDict
 
+from dipin.util import is_class_type
+
 T = TypeVar("T")
 
 
@@ -67,7 +69,7 @@ class Container:
             self._check_for_existing_names(name)
 
         if factory is None:
-            if type(type_) is not type:
+            if not is_class_type(type_):
                 raise ValueError(
                     "Omitting a factory function is only supported for classes"
                 )
