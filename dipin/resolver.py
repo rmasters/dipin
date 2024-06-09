@@ -1,7 +1,10 @@
+import inspect
 from functools import partial
-from typing import get_type_hints
+from typing import get_type_hints, Coroutine, Generator, AsyncGenerator, get_args
 
-from dipin.container import InstanceType, ContainerKey, Factory, Container
+import asyncer
+from dipin.container import InstanceType, ContainerKey, Factory, Container, Instance, InstanceContainerItem, \
+    DefinedFactoryContainerItem, PartialFactoryContainerItem
 from dipin.util import is_class_type
 
 DependencyTree = dict[ContainerKey, dict[str, ContainerKey]]
@@ -13,83 +16,76 @@ class Resolver:
     def __init__(self, container: Container):
         self.container = container
 
-    def get(self, key: ContainerKey) -> InstanceType:
-        dependencies = self.build_required_dependencies(key)
+    def get(self, key: ContainerKey) -> Instance:
+        if key not in self.container:
+            if not (key := self.autowire(key[0])):
+                raise KeyError(f"Unable to resolve {key}")
 
-        factory_deps = {}
-        for arg_name, dep in dependencies[key].items():
-            factory_deps[arg_name] = self.get(dep)
+        item = self.container.get(key)
 
-        factory = self.container.get_factory(key)
-        factory = partial(factory, **factory_deps)
+        if isinstance(item, InstanceContainerItem):
+            return item.instance
 
-        return factory()
+        assert isinstance(item, (DefinedFactoryContainerItem, PartialFactoryContainerItem))
+        factory = self.build_factory_from_factory(item.factory)
+        return self.call_factory(factory)
 
-    def build_required_dependencies(self, key: ContainerKey) -> DependencyTree:
-        """Walk a dependency tree to identify all required dependencies for a given key"""
-        requirements: DependencyTree = {key: {}}
+    def call_factory(self, factory: Factory) -> Instance:
+        if inspect.iscoroutinefunction(factory):
+            return asyncer.syncify(factory)()
 
-        if key in self.container:
-            factory = self.container.get_factory(key)
-        elif is_class_type(key[0]):
-            factory = key[0]
-        else:
-            raise RequiredDependenciesError(
-                f"Unable to build required dependencies for {key} as it has no registered factory function, and is not a class"
-            )
+        result = factory()
 
-        # Identify arguments to the factory function
-        factory_args = self.find_factory_args(factory)
+        if isinstance(result, AsyncGenerator):
+            async def get_next_item(g: AsyncGenerator) -> Instance:
+                async for item in g:
+                    return item
 
-        arg_name: str | None = None
-        arg_key: ContainerKey | None = None
-        unprocessable_args: list[tuple[str, ContainerKey]] = []
-        try:
-            for arg_name, arg_key in factory_args.items():
-                # Identify non-dependency arguments
-                # TODO: Pick up default values for arguments
-                if not is_class_type(arg_key[0]):
-                    unprocessable_args.append((arg_name, arg_key))
+            return asyncer.syncify(get_next_item)(result)
+
+        if isinstance(result, Generator):
+            return next(result)
+
+        return result
+
+    def build_factory_from_factory(self, factory: Factory) -> Factory:
+        return self.build_factory_dependencies(factory)
+
+    def build_factory_from_class(self, cls: InstanceType) -> Factory:
+        ...
+
+    def build_factory_dependencies(self, factory: Factory) -> Factory:
+        args = inspect.signature(factory)
+
+        params = {}
+        for name, param in args.parameters.items():
+            # Attempt to fetch/autowire dependencies
+            if param.annotation is not inspect.Parameter.empty:
+                anno_args = get_args(param.annotation)
+                if len(anno_args) > 0:
+                    params[name] = self.get((anno_args[0], None))
                     continue
 
-                requirements[key][arg_name] = arg_key
-                # Recurse into this dependency
-                requirements.update(self.build_required_dependencies(arg_key))
-        except RecursionError as e:
-            raise CircularDependencyError(factory, arg_name, arg_key) from e
+                params[name] = self.get((param.annotation, None))
+                continue
 
-        if unprocessable_args:
-            raise RequiredDependenciesError(key, unprocessable_args)
+            # Use default values
+            if param.default is not inspect.Parameter.empty:
+                params[name] = param.default
+                continue
 
-        return requirements
+            raise ValueError(f"Unable to fill parameter {name}")
 
-    def get_unique_dependencies(self, tree: DependencyTree) -> set[ContainerKey]:
-        unique = set()
-        for key, deps in tree.items():
-            unique.add(key)
-            for arg_name, dep in deps.items():
-                unique.add(dep)
-        return unique
+        return partial(factory, **params)
 
-    @staticmethod
-    def find_factory_args(factory: Factory) -> dict[ContainerKey]:
-        # Handle factories that are Object.__init__ types
-        if is_class_type(factory):
-            factory = getattr(factory, "__init__", None)
-            if factory is None:
-                raise Exception(
-                    f"Type {factory} does not define an __init__ method to introspect"
-                )
+    def autowire(self, type_: InstanceType) -> ContainerKey | None:
+        if not self.can_autowire(type_):
+            return None
 
-        matches = {}
+        return self.container.register_factory(type_)
 
-        args = get_type_hints(factory)
-        args.pop("return", None)
-
-        for name, type_ in args.items():
-            matches[name] = (type_, None)
-
-        return matches
+    def can_autowire(self, type_: InstanceType) -> bool:
+        return is_class_type(type_)
 
 
 class ResolverError(RuntimeError): ...

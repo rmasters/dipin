@@ -11,9 +11,12 @@
 annotated-types==0.7.0
     # via pydantic
 anyio==4.4.0
+    # via asyncer
     # via httpx
     # via starlette
     # via watchfiles
+asyncer==0.0.7
+    # via dipin
 certifi==2024.6.2
     # via httpcore
     # via httpx

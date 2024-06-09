@@ -1,4 +1,5 @@
 import warnings
+from dataclasses import dataclass
 from typing import Callable, Type, TypeVar, TypedDict
 
 T = TypeVar("T")
@@ -12,33 +13,48 @@ LookupKey = InstanceType | Name
 ContainerKey = tuple[InstanceType, Name | None]
 
 
-class ContainerItem(TypedDict):
-    factory: Instance | Factory
+@dataclass
+class ContainerItem:
     use_cache: bool
+
+
+@dataclass
+class InstanceContainerItem(ContainerItem):
+    instance: Instance
+
+
+@dataclass
+class PartialFactoryContainerItem(ContainerItem):
+    factory: Factory
+
+
+@dataclass
+class DefinedFactoryContainerItem(ContainerItem):
+    factory: Factory
 
 
 class Container:
     container: dict[ContainerKey, ContainerItem]
+    cache: dict[ContainerKey, Instance]
 
     def __init__(self):
         self.container = {}
+        self.cache = {}
 
     def register_instance(
         self,
         instance: Instance,
         type_: InstanceType | None = None,
         name: Name | None = None,
-    ):
+    ) -> ContainerKey:
         if type_ is None:
             type_ = type(instance)
 
         if name:
             self._check_for_existing_names(name)
 
-        def factory() -> type_:
-            return instance
-
-        self.set((type_, name), {"factory": factory, "use_cache": True})
+        self.set((type_, name), InstanceContainerItem(instance=instance, use_cache=False))
+        return type_, name
 
     def register_factory(
         self,
@@ -46,24 +62,20 @@ class Container:
         factory: Factory | None = None,
         name: Name | None = None,
         create_once: bool = False,
-    ):
+    ) -> ContainerKey:
+        if name:
+            self._check_for_existing_names(name)
+
         if factory is None:
             if type(type_) is not type:
                 raise ValueError(
                     "Omitting a factory function is only supported for classes"
                 )
-            factory = type_
+            self.set((type_, name), PartialFactoryContainerItem(factory=type_, use_cache=False))
+            return type_, name
 
-        if name:
-            self._check_for_existing_names(name)
-
-        self.set(
-            (type_, name),
-            {
-                "factory": factory,
-                "use_cache": create_once,
-            },
-        )
+        self.set((type_, name), DefinedFactoryContainerItem(factory=factory, use_cache=False))
+        return type_, name
 
     def set(self, key: ContainerKey, item: ContainerItem):
         if key in self.container:
@@ -74,6 +86,9 @@ class Container:
             )
 
         self.container[key] = item
+
+    def get(self, key: ContainerKey) -> ContainerItem:
+        return self.container[key]
 
     def lookup(self, key: LookupKey) -> ContainerKey:
         if isinstance(key, Name):
@@ -99,13 +114,18 @@ class Container:
             # TODO: Handle replacements later
             raise KeyError(f"Existing container item with name {name}")
 
-    def get_factory(self, key: ContainerKey) -> Instance | Factory:
-        item = self.container[key]
-        return item["factory"]
-
     def should_cache(self, key: ContainerKey) -> bool:
         item = self.container[key]
-        return item["use_cache"]
+        return item.use_cache
+
+    def is_cached(self, key: ContainerKey) -> bool:
+        return key in self.cache
+
+    def get_cached(self, key: ContainerKey) -> Instance:
+        return self.cache[key]
+
+    def set_cached(self, key: ContainerKey, instance: Instance):
+        self.cache[key] = instance
 
     def __len__(self) -> int:
         return len(self.container)
