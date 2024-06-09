@@ -71,10 +71,10 @@ class Container:
                 raise ValueError(
                     "Omitting a factory function is only supported for classes"
                 )
-            self.set((type_, name), PartialFactoryContainerItem(factory=type_, use_cache=False))
+            self.set((type_, name), PartialFactoryContainerItem(factory=type_, use_cache=create_once))
             return type_, name
 
-        self.set((type_, name), DefinedFactoryContainerItem(factory=factory, use_cache=False))
+        self.set((type_, name), DefinedFactoryContainerItem(factory=factory, use_cache=create_once))
         return type_, name
 
     def set(self, key: ContainerKey, item: ContainerItem):
