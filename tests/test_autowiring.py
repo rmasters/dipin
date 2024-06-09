@@ -1,7 +1,7 @@
 import pytest
 
 from dipin.interface import ResolvingContainer
-from dipin.resolver import RequiredDependenciesError
+from dipin.resolver import UnfillableArgumentError
 
 
 def test_autowiring_of_unregistered_dependencies():
@@ -49,10 +49,10 @@ def test_autowiring_of_unregistered_dependency_with_non_type_arg():
     assert len(DI) == 0
     assert Service not in DI
 
-    with pytest.raises(RequiredDependenciesError) as e:
+    with pytest.raises(UnfillableArgumentError) as e:
         DI.get(Service)
 
     assert (
         str(e.value)
-        == "Unable to build required dependencies for test_autowiring.test_autowiring_of_unregistered_dependency_with_non_type_arg.<locals>.Service with unresolved arguments: api_token (<class 'str'>)."
+        == "Unable to fill parameter api_token (<class 'str'>)"
     )
