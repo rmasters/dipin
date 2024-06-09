@@ -1,6 +1,7 @@
 import pytest
 
 from dipin import Container
+from dipin.container import InstanceContainerItem
 
 
 class A: ...
@@ -24,22 +25,10 @@ def test_register_single_instance():
     assert len(container) == 1
     assert (A, None) in container
 
-    factory_fn = container[(A, None)]["factory"]
-    assert callable(factory_fn)
-    assert factory_fn() is instance
+    item = container[(A, None)]
+    assert isinstance(item, InstanceContainerItem)
 
-    assert container[(A, None)]["use_cache"] is True
-
-
-def test_instance_factory_function_returns_same_instance():
-    container = Container()
-
-    instance = A()
-    container.register_instance(instance)
-
-    assert container.get_factory((A, None))() is instance
-    assert container.get_factory((A, None))() is instance
-    assert container.get_factory((A, None))() is instance
+    assert item.instance is instance
 
 
 def test_registering_two_types_of_instance():
@@ -55,19 +44,13 @@ def test_registering_two_types_of_instance():
     assert (A, None) in container
     assert (B, None) in container
 
-    factory_fn_a = container[(A, None)]["factory"]
-    assert callable(factory_fn_a)
+    item_a = container[(A, None)]
+    assert isinstance(item_a, InstanceContainerItem)
+    assert item_a.instance is instance_a
 
-    factory_fn_b = container[(B, None)]["factory"]
-    assert callable(factory_fn_b)
-
-    assert factory_fn_a is not factory_fn_b
-
-    assert factory_fn_a() is instance_a
-    assert factory_fn_b() is instance_b
-
-    assert container[(A, None)]["use_cache"] is True
-    assert container[(B, None)]["use_cache"] is True
+    item_b = container[(B, None)]
+    assert isinstance(item_b, InstanceContainerItem)
+    assert item_b.instance is instance_b
 
 
 def test_registering_two_instances_of_same_type_replaces_instance_and_emits_warning():
@@ -77,6 +60,9 @@ def test_registering_two_instances_of_same_type_replaces_instance_and_emits_warn
     instance_b = A()
 
     container.register_instance(instance_a)
+
+    item = container[(A, None)]
+    assert item.instance is instance_a
 
     with pytest.warns() as record:
         container.register_instance(instance_b)
@@ -90,6 +76,5 @@ def test_registering_two_instances_of_same_type_replaces_instance_and_emits_warn
     assert len(container) == 1
     assert (A, None) in container
 
-    factory_fn = container[(A, None)]["factory"]
-    assert callable(factory_fn)
-    assert factory_fn() is instance_b
+    item = container[(A, None)]
+    assert item.instance is instance_b
