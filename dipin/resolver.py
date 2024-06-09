@@ -1,6 +1,6 @@
 import inspect
 from functools import partial
-from typing import get_type_hints, Coroutine, Generator, AsyncGenerator, get_args
+from typing import get_type_hints, Coroutine, Generator, AsyncGenerator, get_args, Type
 
 import asyncer
 from dipin.container import InstanceType, ContainerKey, Factory, Container, Instance, InstanceContainerItem, \
@@ -17,18 +17,28 @@ class Resolver:
         self.container = container
 
     def get(self, key: ContainerKey) -> Instance:
+        # If the key is not in the container, attempt to autowire it
         if key not in self.container:
-            if not (key := self.autowire(key[0])):
-                raise KeyError(f"Unable to resolve {key}")
+            try:
+                if not (key_ := self.autowire(key[0])):
+                    raise KeyError(f"Unable to resolve {key}")
+            except UnfillableArgumentError as e:
+                e.dependency = key
+                raise e
+            key = key_
 
         item = self.container.get(key)
 
         if isinstance(item, InstanceContainerItem):
             return item.instance
 
-        assert isinstance(item, (DefinedFactoryContainerItem, PartialFactoryContainerItem))
-        factory = self.build_factory_from_factory(item.factory)
-        return self.call_factory(factory)
+        try:
+            assert isinstance(item, (DefinedFactoryContainerItem, PartialFactoryContainerItem))
+            factory = self.build_factory_from_factory(item.factory)
+            return self.call_factory(factory)
+        except RecursionError:
+            # TODO: Detect this earlier
+            raise CircularDependencyError(key)
 
     def call_factory(self, factory: Factory) -> Instance:
         if inspect.iscoroutinefunction(factory):
@@ -51,9 +61,6 @@ class Resolver:
     def build_factory_from_factory(self, factory: Factory) -> Factory:
         return self.build_factory_dependencies(factory)
 
-    def build_factory_from_class(self, cls: InstanceType) -> Factory:
-        ...
-
     def build_factory_dependencies(self, factory: Factory) -> Factory:
         args = inspect.signature(factory)
 
@@ -61,20 +68,24 @@ class Resolver:
         for name, param in args.parameters.items():
             # Attempt to fetch/autowire dependencies
             if param.annotation is not inspect.Parameter.empty:
-                anno_args = get_args(param.annotation)
-                if len(anno_args) > 0:
-                    params[name] = self.get((anno_args[0], None))
-                    continue
+                if isinstance(param.annotation, str):
+                    raise NotImplementedError("String annotations are not supported yet")
 
-                params[name] = self.get((param.annotation, None))
-                continue
+                if is_class_type(param.annotation):
+                    anno_args = get_args(param.annotation)
+                    if len(anno_args) > 0:
+                        params[name] = self.get((anno_args[0], None))
+                        continue
+
+                    params[name] = self.get((param.annotation, None))
+                    continue
 
             # Use default values
             if param.default is not inspect.Parameter.empty:
                 params[name] = param.default
                 continue
 
-            raise ValueError(f"Unable to fill parameter {name}")
+            raise UnfillableArgumentError(name, param.annotation)
 
         return partial(factory, **params)
 
@@ -91,32 +102,25 @@ class Resolver:
 class ResolverError(RuntimeError): ...
 
 
-class RequiredDependenciesError(ResolverError):
-    def __init__(
-        self, dependency: ContainerKey, arguments: list[tuple[str, ContainerKey]]
-    ):
-        self.dependency = dependency
-        self.arguments = arguments
+class UnfillableArgumentError(ResolverError):
+    arg_name: str
+    arg_type: Type
+    dependency: ContainerKey | None
 
-    def __str__(self):
-        dep_name = f"{self.dependency[0].__module__}.{self.dependency[0].__qualname__}"
-        if self.dependency[1]:
-            dep_name += f" (named '{self.dependency[1]}')"
-        arg_text = ", ".join(
-            [f"{arg_name} ({arg_key[0]})" for arg_name, arg_key in self.arguments]
-        )
-        return f"Unable to build required dependencies for {dep_name} with unresolved arguments: {arg_text}."
+    def __init__(self, arg_name: str, arg_type: Type, dependency: ContainerKey | None = None):
+        self.arg_name = arg_name
+        self.arg_type = arg_type
+        self.dependency = dependency
+
+    def __str__(self) -> str:
+        return f"Unable to fill parameter {self.arg_name} ({self.arg_type})" + (" for {self.dependency}" if self.dependency else "")
 
 
 class CircularDependencyError(ResolverError):
-    factory: Factory
-    argument: str
-    container_key: ContainerKey
+    dependency: ContainerKey
 
-    def __init__(self, factory: Factory, argument: str, container_key: ContainerKey):
-        self.factory = factory
-        self.argument = argument
-        self.container_key = container_key
+    def __init__(self, dependency: ContainerKey):
+        self.dependency = dependency
 
     def __str__(self) -> str:
-        return f"Cannot construct {self.factory} as {self.argument} ({self.container_key}) has a circular dependency"
+        return f"Cannot construct {self.dependency} due to a circular dependency"
