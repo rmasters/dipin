@@ -1,0 +1,35 @@
+[project]
+name = "fastapi-sqlmodel-async"
+version = "0.1.0"
+description = "Example app implementing dipin into FastAPI with SQLModel + aiosqlite"
+authors = [{ name = "Ross Masters", email = "ross@rossmasters.com" }]
+dependencies = [
+    "sqlmodel>=0.0.19",
+    "fastapi>=0.111.0",
+    "pydantic-settings>=2.3.1",
+    "nltk>=3.8.1",
+    "humanize>=4.9.0",
+    "dipin @ file:///${PROJECT_ROOT}/../..",
+    "aiosqlite>=0.20.0",
+    "greenlet>=3.0.3",
+    "alembic>=1.13.1",
+]
+readme = "README.md"
+requires-python = ">= 3.12"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = [
+    "pytest>=8.2.2",
+]
+virtual = true
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["fastapi_sqlmodel_async"]

@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<article>
+    <header>
+        <h1>{{ post.title }}</h1>
+        <p>Published <abbr title="{{ post.published_at.isoformat() }}">{{ post.published_at|occurrence }}</abbr></p>
+    </header>
+
+    {{ post.content }}
+</article>
+
+<section id="comments">
+    <header>
+        <h2>{{ comments|len }} comments</h2>
+    </header>
+
+    {% for comment in comments %}
+    <article>
+        <blockquote>
+            <p>{{ comment.content }}</p>
+        </blockquote>
+        <footer>
+            By <cite>{{ comment.author }}</cite>
+            on <abbr title="{{ comment.commented_at.isoformat() }}">{{ comment.commented_at|occurrence }}</abbr>
+        </footer>
+    </article>
+    {% else %}
+    <p><em>* Silence, except for a single cough *</em></p>
+    {% endfor %}
+
+    <footer>
+        <h3>Write a comment</h3>
+        <form method="post" action="{{ url_for("write_comment", post_id=post.id) }}">
+            <label>
+                Name
+                <input type="text" name="author">
+            </label>
+            <label>
+                Comment
+                <textarea name="comment" placeholder="Your innermost thoughts and feelings"></textarea>
+            </label>
+            <button type="submit">Post comment</button>
+        </form>
+    </footer>
+</section>
+{% endblock %}
