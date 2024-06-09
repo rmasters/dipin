@@ -52,7 +52,4 @@ def test_autowiring_of_unregistered_dependency_with_non_type_arg():
     with pytest.raises(UnfillableArgumentError) as e:
         DI.get(Service)
 
-    assert (
-        str(e.value)
-        == "Unable to fill parameter api_token (<class 'str'>)"
-    )
+    assert str(e.value) == "Unable to fill parameter api_token (<class 'str'>)"

@@ -1,6 +1,6 @@
 import warnings
 from dataclasses import dataclass
-from typing import Callable, Type, TypeVar, TypedDict
+from typing import Callable, Type, TypeVar
 
 from dipin.util import is_class_type
 
@@ -32,7 +32,9 @@ class DefinedFactoryContainerItem:
     factory: Factory
 
 
-ContainerItem = InstanceContainerItem | PartialFactoryContainerItem | DefinedFactoryContainerItem
+ContainerItem = (
+    InstanceContainerItem | PartialFactoryContainerItem | DefinedFactoryContainerItem
+)
 
 
 class Container:
@@ -73,10 +75,16 @@ class Container:
                 raise ValueError(
                     "Omitting a factory function is only supported for classes"
                 )
-            self.set((type_, name), PartialFactoryContainerItem(factory=type_, use_cache=create_once))
+            self.set(
+                (type_, name),
+                PartialFactoryContainerItem(factory=type_, use_cache=create_once),
+            )
             return type_, name
 
-        self.set((type_, name), DefinedFactoryContainerItem(factory=factory, use_cache=create_once))
+        self.set(
+            (type_, name),
+            DefinedFactoryContainerItem(factory=factory, use_cache=create_once),
+        )
         return type_, name
 
     def set(self, key: ContainerKey, item: ContainerItem):

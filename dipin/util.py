@@ -1,4 +1,4 @@
-from typing import Any, Type
+from typing import Type
 
 
 def is_class_type(t: Type) -> bool:
