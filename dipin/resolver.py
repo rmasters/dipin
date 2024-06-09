@@ -1,10 +1,18 @@
 import inspect
 from functools import partial
-from typing import get_type_hints, Coroutine, Generator, AsyncGenerator, get_args, Type
+from typing import Generator, AsyncGenerator, get_args, Type
 
 import asyncer
-from dipin.container import InstanceType, ContainerKey, Factory, Container, Instance, InstanceContainerItem, \
-    DefinedFactoryContainerItem, PartialFactoryContainerItem
+from dipin.container import (
+    InstanceType,
+    ContainerKey,
+    Factory,
+    Container,
+    Instance,
+    InstanceContainerItem,
+    DefinedFactoryContainerItem,
+    PartialFactoryContainerItem,
+)
 from dipin.util import is_class_type
 
 DependencyTree = dict[ContainerKey, dict[str, ContainerKey]]
@@ -33,7 +41,9 @@ class Resolver:
             return item.instance
 
         try:
-            assert isinstance(item, (DefinedFactoryContainerItem, PartialFactoryContainerItem))
+            assert isinstance(
+                item, (DefinedFactoryContainerItem, PartialFactoryContainerItem)
+            )
             factory = self.build_factory_from_factory(item.factory)
             return self.call_factory(factory)
         except RecursionError:
@@ -47,6 +57,7 @@ class Resolver:
         result = factory()
 
         if isinstance(result, AsyncGenerator):
+
             async def get_next_item(g: AsyncGenerator) -> Instance:
                 async for item in g:
                     return item
@@ -69,7 +80,9 @@ class Resolver:
             # Attempt to fetch/autowire dependencies
             if param.annotation is not inspect.Parameter.empty:
                 if isinstance(param.annotation, str):
-                    raise NotImplementedError("String annotations are not supported yet")
+                    raise NotImplementedError(
+                        "String annotations are not supported yet"
+                    )
 
                 if is_class_type(param.annotation):
                     anno_args = get_args(param.annotation)
@@ -107,13 +120,17 @@ class UnfillableArgumentError(ResolverError):
     arg_type: Type
     dependency: ContainerKey | None
 
-    def __init__(self, arg_name: str, arg_type: Type, dependency: ContainerKey | None = None):
+    def __init__(
+        self, arg_name: str, arg_type: Type, dependency: ContainerKey | None = None
+    ):
         self.arg_name = arg_name
         self.arg_type = arg_type
         self.dependency = dependency
 
     def __str__(self) -> str:
-        return f"Unable to fill parameter {self.arg_name} ({self.arg_type})" + (" for {self.dependency}" if self.dependency else "")
+        return f"Unable to fill parameter {self.arg_name} ({self.arg_type})" + (
+            " for {self.dependency}" if self.dependency else ""
+        )
 
 
 class CircularDependencyError(ResolverError):

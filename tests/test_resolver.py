@@ -77,10 +77,7 @@ def test_resolver_with_non_type_args(use_autowiring: bool):
     with pytest.raises(UnfillableArgumentError) as e:
         resolver.get((A, None))
 
-    assert (
-        str(e.value)
-        == "Unable to fill parameter val (<class 'int'>)"
-    )
+    assert str(e.value) == "Unable to fill parameter val (<class 'int'>)"
 
 
 def test_resolver_with_non_type_default_arg():
