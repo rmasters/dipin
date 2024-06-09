@@ -19,14 +19,12 @@ class ResolvingContainer:
 
     container: Container
     resolver: Resolver
-    cache: dict[ContainerKey, Instance]
 
     def __init__(
         self, container: Container | None = None, resolver: Resolver | None = None
     ):
         self.container = container or Container()
         self.resolver = resolver or Resolver(self.container)
-        self.cache = {}
 
     def register_instance(self, instance: Instance, name: str | None = None) -> None:
         type_ = type(instance)
@@ -43,26 +41,16 @@ class ResolvingContainer:
         self.container.register_factory(type_, factory, name, create_once)
 
     def get(self, key: LookupKey) -> Instance:
+        container_key = self.get_potential_key(key)
+        return self.retrieve(container_key)
+
+    def get_potential_key(self, key: LookupKey) -> ContainerKey:
         try:
             container_key = self.container.lookup(key)
-            return self.retrieve(container_key)
         except KeyError as e:
             # Auto-wire type-lookups
-            if container_key := self._autowire_unseen_type(key):
-                return self.retrieve(container_key)
-
-            raise e
-
-    def _autowire_unseen_type(self, key: LookupKey) -> ContainerKey | None:
-        if type(key) is not type:
-            return
-
-        container_key = (key, None)
-        deps = self.resolver.build_required_dependencies(container_key)
-        uniques = self.resolver.get_unique_dependencies(deps)
-        for dep in uniques:
-            if dep not in self.container:
-                self.register_factory(dep[0])
+            if not (container_key := self.resolver.autowire(key)):
+                raise e
 
         return container_key
 
@@ -72,13 +60,13 @@ class ResolvingContainer:
     def retrieve(self, container_key: ContainerKey) -> Instance:
         should_cache = self.container.should_cache(container_key)
 
-        if should_cache and container_key in self.cache:
-            return self.cache[container_key]
+        if should_cache and self.container.is_cached(container_key):
+            return self.container.get_cached(container_key)
 
         instance = self.resolver.get(container_key)
 
         if should_cache:
-            self.cache[container_key] = instance
+            self.container.set_cached(container_key, instance)
 
         return instance
 
@@ -97,11 +85,7 @@ class FastAPIContainer(ResolvingContainer):
     """High-level interface for the DI container, for FastAPI application"""
 
     def __getitem__(self, key: LookupKey) -> Depends:
-        try:
-            container_key = self.container.lookup(key)
-        except KeyError as e:
-            if not (container_key := self._autowire_unseen_type(key)):
-                raise e
+        container_key = self.get_potential_key(key)
 
         return Annotated[
             container_key[0],

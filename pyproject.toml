@@ -3,6 +3,7 @@ name = "dipin"
 description = "Dependency injection helper for FastAPI"
 dependencies = [
     "fastapi>=0.111.0",
+    "asyncer>=0.0.7",
 ]
 readme = "README.md"
 authors = [{ name = "Ross Masters", email = "ross@rossmasters.com" }]

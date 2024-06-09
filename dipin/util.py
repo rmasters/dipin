@@ -1,7 +1,7 @@
-from typing import Any
+from typing import Any, Type
 
 
-def is_class_type(t: Any) -> bool:
+def is_class_type(t: Type) -> bool:
     """This is hacky, but I don't know of a good method for checking if a type is a user-defined class."""
 
     return t not in (
@@ -14,6 +14,5 @@ def is_class_type(t: Any) -> bool:
         tuple,
         set,
         frozenset,
-        type,
         type(None),
     )
