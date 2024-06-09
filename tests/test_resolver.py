@@ -83,7 +83,6 @@ def test_resolver_with_non_type_args(use_autowiring: bool):
     )
 
 
-@pytest.mark.xfail(reason="Not yet implemented")
 def test_resolver_with_non_type_default_arg():
     container = Container()
     resolver = Resolver(container)
