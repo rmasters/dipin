@@ -2,8 +2,80 @@
 
 dipin provides a dependency injection container, that primarily aims to work well with FastAPI.
 
-> [!IMPORTANT]  
-> dipin is in very early stages - the API will change, and functionality is surprisingly missing.
+## 🛑 Use [that-depends](https://github.com/modern-python/that-depends) instead
+
+> [!Caution]  
+> The inspiration for dipin came from seeing python-dependency-injector was rarely maintained, and wanting better FastAPI integration.
+>
+> I've since discovered [that-depends](https://github.com/modern-python/that-depends), a successor to PDI that does a **much better** job of dependency management than dipin:
+> *   Defined types for singletons, factories, and importantly context-aware factories which I was about to implement
+> *   Supports Python 3.12
+> *   First-class support for asyncio
+> *   Allows defining dependencies in a container class, rather than a module
+> *   It doesn't quite do auto-wiring yet (e.g. by prefilling dependency args with dependencies of that type) but wiring it up manually isn't too complex
+> *   Is actively maintained, and written in Python so is easy to debug
+
+It's relatively easy to achieve `def handler(dep: DI[Dep])` style injection with that-depends:
+
+```python
+# di.py
+from typing import Type, Annotated, get_args
+
+from fastapi.params import Depends
+from that_depends import BaseContainer
+from that_depends.providers import Singleton
+
+from .settings import Settings
+
+
+T = TypeVar("T")
+
+
+class FastAPIContainerWrapper:
+    container: Type[BaseContainer]
+
+    def __init__(self, container: Type[BaseContainer]):
+        self.container = container
+
+    def __getitem__(self, lookup_cls: Type[T]) -> Annotated[Type[T], Depends]:
+        container_annotations = getattr(self.container, "__annotations__", {})
+
+        for name, provider in self.container.get_providers().items():
+            if name not in container_annotations:
+                continue
+
+            if not (annotation := get_args(container_annotations[name])):
+                continue
+
+            if (cls := annotation[0]) is lookup_cls:
+                return Annotated[cls, Depends(provider)]
+
+        raise ValueError(f"Could not find provider in container for {lookup_cls}")
+
+
+class Container(BaseContainer):
+    settings: Singleton[Settings] = Singleton(Settings)  # <== The type-annotation is used here for lookup
+
+
+DI = FastAPIContainerWrapper(Container)
+```
+
+```python
+# app.py
+
+from fastapi import APIRouter
+from that_depends.providers.context_resources import DIContextMiddleware
+
+from .di import DI
+from .settings import Settings
+
+router = APIRouter(middleware=[DIContextMiddleware])  # type: ignore
+
+
+@router.get("/")
+async def handler(settings: DI[Settings]):
+    return {"version": settings.app_version}
+```
 
 ## Motivation
 
